@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# 项目运行时数据 (含 SQLite 库、加密密钥、下载的控制台密钥, 绝不能提交)
+data/
+logs/
+*.db
+*.sqlite3
+
+# 本地配置 (含 Telegram Token 等密钥)
+.env
+.env.local
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*~

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OCI Pilot · 甲骨文云管理</title>
+<link rel="stylesheet" href="style.css?v=20261017a">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+</head>
+<body>
+
+<!-- ============ 登录视图 ============ -->
+<div id="login-view" class="login-view hidden">
+  <div class="login-card">
+    <div class="login-logo">🚀 OCI Pilot</div>
+    <div class="login-sub">甲骨文云 · 自托管管理面板</div>
+    <div id="setup-hint" class="hidden" style="margin-bottom:16px;padding:14px;border-radius:12px;background:var(--blue-bg);font-size:13px;line-height:1.8">
+      <b>👋 首次部署</b><br>
+      1. 确认 <code>.env</code> 里配好 <code>TELEGRAM_BOT_TOKEN</code> 和 <code>TELEGRAM_ALLOWED_IDS</code> 并重启<br>
+      2. 在 Telegram 里给机器人发 <code>/bind</code> 创建管理员账号<br>
+      3. 发 <code>/logincode</code> 获取验证码，在下方输入登录
+    </div>
+    <form id="form-login-code" class="login-form">
+      <input id="login-code" placeholder="6 位验证码" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+      <div class="hint">在 Telegram 里给机器人发 <code>/logincode</code> 获取验证码（5 分钟有效）</div>
+      <button type="submit" class="btn primary block">验证登录</button>
+    </form>
+    <div id="login-err" class="login-err"></div>
+  </div>
+</div>
+
+<!-- ============ 主应用 ============ -->
+<div id="app" class="app hidden">
+  <aside id="sidebar">
+    <div class="brand">🚀 OCI Pilot</div>
+    <nav id="nav"></nav>
+    <div class="side-foot">
+      <div id="side-user" class="side-user"></div>
+      <button id="btn-logout" class="btn ghost sm">退出登录</button>
+    </div>
+  </aside>
+  <div class="main-wrap">
+    <header id="topbar">
+      <div class="tb-left">
+        <label>Profile / OCI 账号</label>
+        <select id="account-select"></select>
+        <button id="btn-acc-refresh" class="btn sm" title="刷新账号列表">↻</button>
+      </div>
+      <div class="tb-right"><span id="tb-clock"></span></div>
+    </header>
+    <main id="page"></main>
+  </div>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+<div id="loading-overlay" class="hidden"><div class="spinner"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="app.js?v=20261018b"></script>
+</body>
+</html>
