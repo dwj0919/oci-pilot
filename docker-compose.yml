@@ -1,0 +1,25 @@
+# oci-pilot docker compose 一键部署
+#
+# 用法:
+#   1. cp .env.example .env, 按需填写 TELEGRAM_BOT_TOKEN / TELEGRAM_ALLOWED_IDS
+#      (不填也能跑, 只是 Telegram Bot 不启动)
+#   2. docker compose up -d --build
+#   3. 浏览器打开 http://服务器IP:9528
+#
+# 数据持久化在 ./data 目录 (SQLite + 加密密钥), 重建/升级容器不丢数据。
+# 升级: docker compose pull && docker compose up -d --build (本地构建则直接 up -d --build)
+services:
+  oci-pilot:
+    build: .
+    image: oci-pilot:latest
+    container_name: oci-pilot
+    restart: unless-stopped
+    ports:
+      - "9528:9528"
+    volumes:
+      - ./data:/data
+    env_file:
+      - .env
+    environment:
+      # 容器内数据目录固定为 /data (覆盖 .env 里的 OCI_PILOT_DATA)
+      OCI_PILOT_DATA: /data

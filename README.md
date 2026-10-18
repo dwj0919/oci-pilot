@@ -41,7 +41,16 @@ cp .env.example .env   # 然后编辑 .env 填 TELEGRAM_BOT_TOKEN 等
 
 浏览器打开 `http://你的IP:9528`，按页面上的首次部署指引（Telegram `/bind` + `/logincode`）登录即可。
 
-Docker：
+Docker（推荐 compose，一行启动）：
+
+```bash
+cp .env.example .env   # 按需填 TELEGRAM_BOT_TOKEN / TELEGRAM_ALLOWED_IDS，不填也能跑
+docker compose up -d --build
+```
+
+浏览器打开 `http://你的IP:9528`。数据持久化在 `./data`，升级重建容器不丢。
+
+只用裸 Docker 也行：
 
 ```bash
 docker build -t oci-pilot .
