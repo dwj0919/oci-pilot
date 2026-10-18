@@ -37,7 +37,8 @@ async def lifespan(app: FastAPI):
         except Exception:  # noqa: BLE001
             log.exception("bot 启动失败, 继续运行 Web 服务")
     else:
-        log.info("未配置 TELEGRAM_BOT_TOKEN, Bot 不启动")
+        log.warning("未配置 TELEGRAM_BOT_TOKEN, Bot 不启动 —— "
+                    "面板登录唯一方式是 Telegram 验证码, 不配则谁也无法登录!")
     await launch.resume_all()
     log.info("oci-pilot ready")
     yield

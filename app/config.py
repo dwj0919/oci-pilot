@@ -32,7 +32,7 @@ SECRET_FILE = DATA_DIR / ".secret"
 PORT = int(os.environ.get("OCI_PILOT_PORT", "9528"))
 HOST = os.environ.get("OCI_PILOT_HOST", "0.0.0.0")
 
-# Telegram Bot Token (可选, 不填则 Bot 不启动)
+# Telegram Bot Token (必填! 面板登录唯一方式是 Telegram 验证码, 不配则谁也无法登录)
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 
 

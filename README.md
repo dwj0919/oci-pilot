@@ -35,7 +35,7 @@ cd oci-pilot
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 # 可选: 把配置写进项目根目录的 .env 文件(复制 .env.example 改名即可),
 # 也支持直接 export 环境变量(环境变量优先于 .env)
-cp .env.example .env   # 然后编辑 .env 填 TELEGRAM_BOT_TOKEN 等
+cp .env.example .env   # 然后编辑 .env 填写 TELEGRAM_BOT_TOKEN / TELEGRAM_ALLOWED_IDS (必填, 否则无法登录)
 .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 9528
 ```
 
@@ -44,7 +44,7 @@ cp .env.example .env   # 然后编辑 .env 填 TELEGRAM_BOT_TOKEN 等
 Docker（推荐 compose，一行启动）：
 
 ```bash
-cp .env.example .env   # 按需填 TELEGRAM_BOT_TOKEN / TELEGRAM_ALLOWED_IDS，不填也能跑
+cp .env.example .env   # 填写 TELEGRAM_BOT_TOKEN / TELEGRAM_ALLOWED_IDS (必填, 否则无法登录)
 docker compose up -d --build
 ```
 

@@ -1,8 +1,8 @@
 # oci-pilot docker compose 一键部署
 #
 # 用法:
-#   1. cp .env.example .env, 按需填写 TELEGRAM_BOT_TOKEN / TELEGRAM_ALLOWED_IDS
-#      (不填也能跑, 只是 Telegram Bot 不启动)
+#   1. cp .env.example .env, 填写 TELEGRAM_BOT_TOKEN 和 TELEGRAM_ALLOWED_IDS
+#      (必填! 面板登录唯一方式是 Telegram 验证码, 不填谁也登录不了)
 #   2. docker compose up -d --build
 #   3. 浏览器打开 http://服务器IP:9528
 #
