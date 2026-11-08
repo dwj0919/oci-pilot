@@ -2,6 +2,10 @@
 
 甲骨文云 (OCI) 自托管管理面板：Web 云管理 + Web SSH 终端 + Telegram 机器人，**全部功能免费、开源 (MIT)**。
 
+## English summary
+
+oci-pilot is a free, open-source (MIT), self-hosted management panel for Oracle Cloud Infrastructure (OCI). It reimplements the OCI feature set of tools like R-Bot with fully original code: instance management, a launch-retry ("capacity hunter") engine, image reinstall, terminate-while-keeping-the-boot-volume, public IP swap, multi-profile support, launching from an existing boot volume, object storage, serial console access, Web SSH/SFTP, a traffic guard, an instance watchdog, and a Telegram bot. Your OCI API keys never leave your own server.
+
 > 🤖 本项目全程由 [muse.ai](https://muse.ai)（Meta 的个人 AI 助手）协助完成：从需求分析、架构设计到全部代码、测试与部署文档，均由 Muse 与作者结对构建。
 
 把 R-Bot 那类工具的 OCI 能力用原创代码实现了一遍：抢机、换 IP、保留启动盘删机、重装系统、流量守护、多 profile、从系统盘开机、对象存储、串行控制台。本项目只专注 OCI 管理本身，不做邮件、域名等周边功能。API 私钥只存在你自己的服务器上，不经过任何第三方。
