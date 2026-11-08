@@ -55,12 +55,11 @@ app = FastAPI(title="oci-pilot", lifespan=lifespan,
               docs_url=None, redoc_url=None, openapi_url=None)
 
 from .routers import (auth, accounts, instances, network, volumes,
-                      objectstore, console, email, cloudflare,
-                      monitors, overview)
+                      objectstore, console, monitors, overview)
 
 for r in (auth.router, accounts.router, instances.router, network.router,
-          volumes.router, objectstore.router, console.router, email.router,
-          cloudflare.router, monitors.router, overview.router):
+          volumes.router, objectstore.router, console.router, monitors.router,
+          overview.router):
     app.include_router(r)
 
 try:

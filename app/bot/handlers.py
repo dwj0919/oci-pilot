@@ -143,16 +143,10 @@ HELP_TEXT = """🤖 oci-pilot Bot 命令一览
 💾 存储网络
 /volumes - 硬盘列表(含启动盘)
 /quota - 配额查询
-/dns - Cloudflare 解析快捷操作
-
-📧 邮件
-/senders - 邮件发件人列表
-/mkdomain - 创建发信域名(含 DKIM)
 
 📊 监控
 /watch - 实例保活(掉线通知/自动重启)
 /traffic - 流量守护(超阈值通知/关机)
-/domains - 域名与证书到期监控
 /daily - 每日报告开关
 
 除 /start /bind /logincode 外, 其他命令需先绑定。

@@ -126,10 +126,6 @@ class Clients:
     def limits(self):
         return self._get("limits", oci.limits.LimitsClient)
 
-    @property
-    def email(self):
-        return self._get("email", oci.email.EmailClient)
-
 
 @contextlib.contextmanager
 def oci_clients(account_id: int) -> Iterator[Clients]:

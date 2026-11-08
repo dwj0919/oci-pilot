@@ -53,8 +53,10 @@ class FakeCompute:
         assert details.shape == "VM.Standard.A1.Flex"
         src = details.source_details
         if getattr(src, "boot_volume_id", None):
-            # 从启动盘开机: 不带 shape_config
-            assert details.shape_config is None
+            # 从启动盘开机: Flex 机型仍必须带 shape_config (生产代码有意为之,
+            # 无 ocpus 参数时用默认 1C/1G)
+            assert details.shape_config is not None
+            assert details.shape_config.ocpus == 1
         else:
             assert details.shape_config.ocpus == 2
             assert "ssh_authorized_keys" in details.metadata
@@ -203,15 +205,6 @@ class FakeIdentity:
     def list_availability_domains(self, comp):
         return FakeResp([NS(name="AD-1")])
 
-    def create_smtp_credential(self, uid, details):
-        return FakeResp(NS(id="ocid1.smtp.s1", username="u",
-                           password="p"))
-
-    def list_smtp_credentials(self, uid, **kw):
-        return FakeResp([])
-
-    def delete_smtp_credential(self, uid, cid):
-        return FakeResp(None)
 
 
 class FakeObjects:
@@ -256,34 +249,6 @@ class FakeLimits:
         return FakeResp([])
 
 
-class FakeEmail:
-    def list_email_domains(self, comp, **kw):
-        return FakeResp([])
-
-    def create_email_domain(self, details):
-        assert details.name == "mail.example.com"
-        return FakeResp(NS(id="ocid1.emaildomain.e1",
-                           name="mail.example.com"))
-
-    def create_dkim(self, details):
-        assert details.email_domain_id == "ocid1.emaildomain.e1"
-        return FakeResp(NS(dns_records=[
-            NS(name="a", record_type="CNAME", value="b")]))
-
-    def delete_email_domain(self, did):
-        return FakeResp(None)
-
-    def list_senders(self, comp, **kw):
-        return FakeResp([])
-
-    def create_sender(self, details):
-        return FakeResp(NS(id="ocid1.sender.s1",
-                           email_address=details.email_address))
-
-    def delete_sender(self, sid):
-        return FakeResp(None)
-
-
 class FakeClients:
     def __init__(self):
         self.compute = FakeCompute()
@@ -293,7 +258,6 @@ class FakeClients:
         self.objects = FakeObjects()
         self.monitoring = FakeMonitoring()
         self.limits = FakeLimits()
-        self.email = FakeEmail()
         self.tenancy = "ocid1.tenancy.t"
 
 
@@ -309,10 +273,10 @@ def _patch(*modules):
 
 def run():
     from app.oci import (compute, network, volumes, identity,
-                         objectstore, metrics, console, email)
+                         objectstore, metrics, console)
 
     mods = ["compute", "network", "volumes", "identity",
-            "objectstore", "metrics", "console", "email", "base"]
+            "objectstore", "metrics", "console", "base"]
     patches = _patch(*mods)
     for p in patches:
         p.start()
@@ -365,11 +329,6 @@ def run():
         assert "instance-console.us-ashburn-1" in cc["ssh_command"]
         h = console.get_console_history(1, "ocid1.history.h1")
         assert "boot log" in h["content"]
-        # 邮件
-        d = email.create_email_domain(1, "ocid1.comp.c1",
-                                      "mail.example.com")
-        assert d["dkim_records"][0]["type"] == "CNAME"
-        email.create_sender(1, "ocid1.comp.c1", "n@mail.example.com")
         print("ALL OCI MODEL TESTS PASS")
     finally:
         for p in patches:

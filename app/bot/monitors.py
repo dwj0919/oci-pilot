@@ -1,11 +1,11 @@
-"""监控命令: /watch 保活 /traffic 流量守护 /domains 域名监控 /daily 日报开关。"""
+"""监控命令: /watch 保活 /traffic 流量守护 /daily 日报开关。"""
 from sqlmodel import select
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (Application, CallbackQueryHandler, CommandHandler,
                           ContextTypes, ConversationHandler, MessageHandler,
                           filters)
 
-from ..db import DomainMonitor, InstanceWatch, TrafficGuard, get_session
+from ..db import InstanceWatch, TrafficGuard, get_session
 from ..oci import compute, metrics
 from ..oci.base import OCIError
 from .handlers import (cb_get, cb_put, check_bind_query,
@@ -278,77 +278,6 @@ async def cb_traffic_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text("✅ 流量守护已删除, 用 /traffic 查看最新列表。")
 
 
-# ---------- /domains 域名与证书到期监控 ----------
-
-D_ADD = 0
-
-
-@need_bind
-async def cmd_domains(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    with get_session() as s:
-        doms = s.exec(select(DomainMonitor)).all()
-        rows = [(d.id, d.domain, d.domain_expiry, d.ssl_expiry, d.enabled)
-                for d in doms]
-    lines = ["🔍 域名监控列表:"]
-    for _, dom, dexp, sexp, en in rows:
-        lines.append(f"{'✅' if en else '⏸️'} {dom} "
-                     f"(域名到期 {dexp or '?'} / 证书到期 {sexp or '?'})")
-    if not rows:
-        lines.append("(空)")
-    lines.append("\n到期前 30/14/7/1 天会收到 Telegram 提醒。")
-    kb = [[InlineKeyboardButton(f"🗑️ {dom}", callback_data=f"ddel:{did}")]
-          for did, dom, _, _, _ in rows]
-    kb.append([InlineKeyboardButton("➕ 添加域名", callback_data="dadd")])
-    await update.message.reply_text("\n".join(lines),
-                                    reply_markup=InlineKeyboardMarkup(kb))
-
-
-async def _dom_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("已取消。")
-    return ConversationHandler.END
-
-
-async def cb_domain_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if not await check_bind_query(query):
-        return ConversationHandler.END
-    await query.edit_message_text("请发送要监控的域名(如 example.com):")
-    return D_ADD
-
-
-async def msg_domain_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    dom = update.message.text.strip().lower()
-    if not dom or " " in dom or "." not in dom:
-        await update.message.reply_text("域名格式不对, 请重新发送")
-        return D_ADD
-    with get_session() as s:
-        exists = s.exec(select(DomainMonitor).where(
-            DomainMonitor.domain == dom)).first()
-        if exists:
-            exists.enabled = True
-            s.add(exists)
-        else:
-            s.add(DomainMonitor(domain=dom))
-        s.commit()
-    await update.message.reply_text(f"✅ 已添加域名监控: {dom}")
-    return ConversationHandler.END
-
-
-async def cb_domain_del(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    if not await check_bind_query(query):
-        return
-    did = int(query.data.split(":")[1])
-    with get_session() as s:
-        d = s.get(DomainMonitor, did)
-        if d:
-            s.delete(d)
-            s.commit()
-    await query.edit_message_text("✅ 已删除, 用 /domains 查看最新列表。")
-
-
 # ---------- /daily 每日报告 ----------
 
 @need_bind
@@ -380,16 +309,6 @@ def register_monitors(app: Application):
     app.add_handler(CallbackQueryHandler(cb_watch_pick, pattern=r"^waddi:[0-9a-f]+$"))
     app.add_handler(CallbackQueryHandler(cb_watch_auto, pattern=r"^wauto:[0-9a-f]+:[01]$"))
     app.add_handler(CallbackQueryHandler(cb_watch_del, pattern=r"^wdel:\d+$"))
-
-    app.add_handler(CommandHandler("domains", cmd_domains))
-    app.add_handler(CallbackQueryHandler(cb_domain_del, pattern=r"^ddel:\d+$"))
-    dom_conv = ConversationHandler(
-        entry_points=[CallbackQueryHandler(cb_domain_add, pattern=r"^dadd$")],
-        states={D_ADD: [MessageHandler(filters.TEXT & ~filters.COMMAND, msg_domain_add)]},
-        fallbacks=[CommandHandler("cancel", _dom_cancel)],
-        per_user=True,
-    )
-    app.add_handler(dom_conv)
 
     traffic_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(cb_traffic_add, pattern=r"^tadd$")],

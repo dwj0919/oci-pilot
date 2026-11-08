@@ -1,17 +1,13 @@
-"""监控告警: 实例保活 / 流量守护 / 域名证书监控 / 每日报告。"""
-import asyncio
+"""监控告警: 实例保活 / 流量守护 / 每日报告。"""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlmodel import select
 
 from ..deps import get_current_user
-from ..db import (User, InstanceWatch, TrafficGuard, DomainMonitor,
-                  KVStore, get_session)
+from ..db import (User, InstanceWatch, TrafficGuard, KVStore, get_session)
 from ..oci import compute as C
 from ..oci import metrics as M
-from .. import cloudflare as CF
-from ..monitor.domains_check import get_domain_expiry, get_ssl_expiry
 from . import _util as U
 
 router = APIRouter(prefix="/api/monitors")
@@ -170,117 +166,6 @@ async def traffic_usage(tid: int, account_id: int,
     from datetime import datetime
     return {"used_gb": used, "threshold_gb": threshold,
             "month": datetime.now().strftime("%Y-%m")}
-
-
-# ---------- 域名 + SSL 证书监控 ----------
-
-class DomainIn(BaseModel):
-    domain: str
-    check_domain: bool = True
-    check_ssl: bool = True
-
-
-@router.get("/domains")
-def list_domains(user: User = Depends(get_current_user)):
-    with get_session() as s:
-        return [d.model_dump() for d in s.exec(select(DomainMonitor)).all()]
-
-
-@router.post("/domains")
-async def add_domain(data: DomainIn, user: User = Depends(get_current_user)):
-    domain = data.domain.strip().lower()
-    if not domain:
-        raise HTTPException(400, "域名不能为空")
-    with get_session() as s:
-        exists = s.exec(select(DomainMonitor).where(
-            DomainMonitor.domain == domain)).first()
-        if exists:
-            raise HTTPException(400, "该域名已在监控中")
-        d = DomainMonitor(domain=domain,
-                          check_domain=data.check_domain,
-                          check_ssl=data.check_ssl)
-        s.add(d)
-        s.commit()
-        s.refresh(d)
-        did = d.id
-    # 添加后立即检查一次, 不用等到第二天凌晨 3 点
-    try:
-        await asyncio.to_thread(_check_domain_now, did)
-    except Exception:
-        pass
-    with get_session() as s:
-        return s.get(DomainMonitor, did).model_dump()
-
-
-def _check_domain_now(did: int) -> dict:
-    """同步检查单个域名的到期时间并写库 (在线程里跑)。"""
-    with get_session() as s:
-        d = s.get(DomainMonitor, did)
-        if not d:
-            return {}
-        domain, check_domain, check_ssl = d.domain, d.check_domain, d.check_ssl
-    out = {}
-    if check_domain:
-        exp = get_domain_expiry(domain)
-        if exp:
-            out["domain_expiry"] = str(exp)
-    if check_ssl:
-        exp = get_ssl_expiry(domain)
-        if exp:
-            out["ssl_expiry"] = str(exp)
-    if out:
-        with get_session() as s:
-            d = s.get(DomainMonitor, did)
-            for k, v in out.items():
-                setattr(d, k, v)
-            s.add(d)
-            s.commit()
-    return {"domain": domain, **out}
-
-
-@router.post("/domains/check-all")
-async def check_all_domains(user: User = Depends(get_current_user)):
-    """手动立即检查全部启用中的域名。"""
-    with get_session() as s:
-        ids = [d.id for d in s.exec(select(DomainMonitor)).all() if d.enabled]
-    ok, failed = 0, 0
-    for did in ids:
-        try:
-            await asyncio.to_thread(_check_domain_now, did)
-            ok += 1
-        except Exception:
-            failed += 1
-    return {"ok": True, "checked": ok, "failed": failed}
-
-
-@router.delete("/domains/{did}")
-def del_domain(did: int, user: User = Depends(get_current_user)):
-    with get_session() as s:
-        d = s.get(DomainMonitor, did)
-        if d:
-            s.delete(d)
-            s.commit()
-        return {"ok": True}
-
-
-class ImportCfIn(BaseModel):
-    cf_id: int
-
-
-@router.post("/domains/import-cf")
-async def import_cf(data: ImportCfIn, user: User = Depends(get_current_user)):
-    zones = await U.oci_call(CF.list_zones, data.cf_id)
-    added = 0
-    with get_session() as s:
-        for z in zones:
-            exists = s.exec(select(DomainMonitor).where(
-                DomainMonitor.domain == z["name"])).first()
-            if not exists:
-                s.add(DomainMonitor(domain=z["name"]))
-                added += 1
-        s.commit()
-    return {"ok": True, "added": added, "total": len(zones),
-            "imported": added}
 
 
 # ---------- 每日报告 ----------

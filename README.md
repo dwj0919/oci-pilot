@@ -4,7 +4,7 @@
 
 > 🤖 本项目全程由 [muse.ai](https://muse.ai)（Meta 的个人 AI 助手）协助完成：从需求分析、架构设计到全部代码、测试与部署文档，均由 Muse 与作者结对构建。
 
-把 R-Bot 那类工具的 OCI 能力用原创代码实现了一遍：抢机、换 IP、保留启动盘删机、重装系统、流量守护、多 profile、从系统盘开机、对象存储、邮件域名、串行控制台、Cloudflare DNS、域名证书监控。API 私钥只存在你自己的服务器上，不经过任何第三方。
+把 R-Bot 那类工具的 OCI 能力用原创代码实现了一遍：抢机、换 IP、保留启动盘删机、重装系统、流量守护、多 profile、从系统盘开机、对象存储、串行控制台。本项目只专注 OCI 管理本身，不做邮件、域名等周边功能。API 私钥只存在你自己的服务器上，不经过任何第三方。
 
 ## 与 R-Bot 的关系声明
 
@@ -26,14 +26,11 @@
 | 硬盘 | 数据卷/启动盘：创建/扩容/调性能/分离/挂回/删除 |
 | 串行控制台 | SSH 连不上时的救命通道 + 控制台历史查看 |
 | 对象存储 | Bucket 增删、文件上传/下载/删除 |
-| 邮件服务 | 发信域名（返回 DKIM 记录）、发件人、SMTP 账号（密码只显示一次）、测试发信 |
 | A1 体检 | 批量检查 ARM 实例是否超出免费额度（4C/24G） |
 | 实例保活 | 意外停机 Telegram 通知 / 自动拉起 |
 | 流量守护 | 按实例设月流出阈值，超了通知或自动关机 |
-| 域名监控 | 域名 + SSL 证书到期 30/14/7/1 天分档提醒，可从 Cloudflare 一键导入 |
-| Cloudflare | 域名解析增删改查、换 IP 自动更新 A 记录 |
 | Web SSH | 浏览器终端（多标签）、SFTP 文件管理、在线编辑、一键从 OCI 同步主机 |
-| Telegram Bot | 上面几乎所有能力都能在手机上操作（/instances /launch /tasks /quota /volumes /watch /traffic /domains /dns …） |
+| Telegram Bot | 上面几乎所有能力都能在手机上操作（/instances /launch /tasks /quota /volumes /watch /traffic /daily …） |
 | 每日报告 | 每天 08:00 推送实例日报 |
 
 ## 快速开始
@@ -97,13 +94,12 @@ docker run -d -p 9528:9528 -v oci-pilot-data:/data \
 app/
   main.py            入口 (FastAPI + lifespan)
   config.py db.py security.py deps.py notify.py
-  cloudflare.py      Cloudflare DNS
   oci/               OCI 封装: base/compute/network/volumes/identity/
-                     objectstore/metrics/console/email/launch(抢机引擎)
+                     objectstore/metrics/console/launch(抢机引擎)
   routers/           REST API
   bot/               Telegram Bot
   ssh/               Web SSH 会话管理 + SFTP
-  monitor/           调度器: 保活/流量守护/域名证书/日报
+  monitor/           调度器: 保活/流量守护/日报
 web/                 前端 SPA
 ```
 

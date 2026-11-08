@@ -1,4 +1,4 @@
-"""后台定时任务: 实例保活 / 流量守护 / 域名证书到期 / 每日报告。"""
+"""后台定时任务: 实例保活 / 流量守护 / 每日报告。"""
 import asyncio
 import logging
 from datetime import datetime
@@ -6,18 +6,13 @@ from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlmodel import select
 
-from ..db import (InstanceWatch, TrafficGuard, DomainMonitor,
-                  KVStore, get_session)
+from ..db import (InstanceWatch, TrafficGuard, KVStore, get_session)
 from ..notify import notify
 from ..oci import compute as C
 from ..oci import metrics as M
 from ..oci.base import OCIError
-from .domains_check import (get_domain_expiry, get_ssl_expiry, days_left)
-
 log = logging.getLogger("oci-pilot")
 scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
-
-TIERS = [30, 14, 7, 1]
 
 
 def kv_get(key: str, default: str = "") -> str:
@@ -107,57 +102,6 @@ async def _traffic_guard():
             log.exception("traffic guard %s failed", name)
 
 
-async def _domain_check():
-    """域名 + SSL 证书到期检查, 30/14/7/1 天分档提醒。"""
-    with get_session() as s:
-        domains = s.exec(select(DomainMonitor)).all()
-        domains = [d for d in domains if d.enabled]
-        items = [(d.id, d.domain, d.check_domain, d.check_ssl,
-                  d.last_notified_tier) for d in domains]
-    for did, domain, check_domain, check_ssl, last_tiers in items:
-        try:
-            notified = set(last_tiers.split(",")) if last_tiers else set()
-            msgs = []
-            if check_domain:
-                exp = await asyncio.to_thread(get_domain_expiry, domain)
-                dl = days_left(exp)
-                if exp:
-                    with get_session() as s:
-                        d = s.get(DomainMonitor, did)
-                        d.domain_expiry = str(exp)
-                        s.add(d)
-                        s.commit()
-                if dl is not None and dl >= 0:
-                    for tier in TIERS:
-                        if dl <= tier and str(tier) not in notified:
-                            msgs.append(f"域名 {domain} 还有 {dl} 天到期")
-                            notified.add(str(tier))
-            if check_ssl:
-                exp = await asyncio.to_thread(get_ssl_expiry, domain)
-                dl = days_left(exp)
-                if exp:
-                    with get_session() as s:
-                        d = s.get(DomainMonitor, did)
-                        d.ssl_expiry = str(exp)
-                        s.add(d)
-                        s.commit()
-                if dl is not None and dl >= 0:
-                    for tier in TIERS:
-                        if dl <= tier and f"ssl{tier}" not in notified:
-                            msgs.append(
-                                f"域名 {domain} SSL 证书还有 {dl} 天到期")
-                            notified.add(f"ssl{tier}")
-            if msgs:
-                notify("[到期提醒]\n" + "\n".join(msgs))
-            with get_session() as s:
-                d = s.get(DomainMonitor, did)
-                d.last_notified_tier = ",".join(sorted(notified))
-                s.add(d)
-                s.commit()
-        except Exception:
-            log.exception("domain check %s failed", domain)
-
-
 async def _daily_report():
     """每日 08:00 推送实例日报。"""
     if kv_get("daily_report") != "1":
@@ -180,8 +124,6 @@ def start_scheduler():
                       max_instances=1, coalesce=True)
     scheduler.add_job(_traffic_guard, "interval", minutes=30,
                       id="traffic_guard", max_instances=1, coalesce=True)
-    scheduler.add_job(_domain_check, "cron", hour=3, minute=0,
-                      id="domain_check")
     scheduler.add_job(_daily_report, "cron", hour=8, minute=0,
                       id="daily_report")
     scheduler.start()

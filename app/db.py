@@ -93,23 +93,6 @@ class TrafficGuard(SQLModel, table=True):
     used_gb: float = 0.0
 
 
-class DomainMonitor(SQLModel, table=True):
-    """域名 + SSL 证书到期监控。"""
-    id: Optional[int] = Field(default=None, primary_key=True)
-    domain: str = Field(index=True, unique=True)
-    check_domain: bool = True
-    check_ssl: bool = True
-    enabled: bool = True
-    domain_expiry: Optional[str] = None
-    ssl_expiry: Optional[str] = None
-    last_notified_tier: str = ""
-
-
-class CloudflareAccount(SQLModel, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    name: str = Field(index=True, unique=True)
-    token_enc: str  # API Token (推荐) Fernet 加密
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class LoginCode(SQLModel, table=True):
