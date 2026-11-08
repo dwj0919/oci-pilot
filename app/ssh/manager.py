@@ -116,23 +116,8 @@ class SSHSessionManager:
 
     async def create_from_host_id(self, host_id: int) -> str:
         """从 DB 的 Host 记录创建会话(自动解密密码 / 关联密钥)。"""
-
-        def _load():
-            with get_session() as s:
-                h = s.get(Host, host_id)
-                if not h:
-                    raise ValueError(f"主机 #{host_id} 不存在")
-                password = decrypt(h.password_enc) if h.password_enc else None
-                pkey = None
-                if h.auth_type == "key" and h.key_id:
-                    k = s.get(SSHKey, h.key_id)
-                    if not k:
-                        raise ValueError("该主机关联的密钥已被删除")
-                    pkey = decrypt(k.private_key_enc)
-                return {"hostname": h.hostname, "port": h.port,
-                        "username": h.username}, password, pkey
-
-        host, password, pkey = await asyncio.to_thread(_load)
+        host, password, pkey = await asyncio.to_thread(
+            load_host_credentials, host_id)
         return await self.create_session(host, password, pkey)
 
     def get(self, session_id: str) -> dict | None:
@@ -231,3 +216,45 @@ class SSHSessionManager:
             s.commit()
         return {"created": created, "updated": updated,
                 "synced": created + updated}
+
+
+def load_host_credentials(host_id: int):
+    """同步读取一台主机的连接信息与凭证, 返回 (host_dict, password, pkey_pem)。
+
+    供交互式会话与运维任务执行器共用; 在线程里调用。
+    """
+    with get_session() as s:
+        h = s.get(Host, host_id)
+        if not h:
+            raise ValueError(f"主机 #{host_id} 不存在")
+        password = decrypt(h.password_enc) if h.password_enc else None
+        pkey = None
+        if h.auth_type == "key" and h.key_id:
+            k = s.get(SSHKey, h.key_id)
+            if not k:
+                raise ValueError("该主机关联的密钥已被删除")
+            pkey = decrypt(k.private_key_enc)
+        return {"hostname": h.hostname, "port": h.port,
+                "username": h.username}, password, pkey
+
+
+def connect_client(host: dict, password: str | None = None,
+                   private_key: str | None = None,
+                   timeout: int = 15) -> paramiko.SSHClient:
+    """建立一条非交互 SSH 连接(不开 shell), 供命令执行器使用。"""
+    if not private_key and not password:
+        raise ValueError("该主机未配置登录凭证, 请先编辑主机填写密码或关联密钥")
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    kwargs: dict = {
+        "hostname": host["hostname"], "port": int(host.get("port") or 22),
+        "username": host.get("username") or "root",
+        "timeout": timeout, "banner_timeout": timeout,
+        "auth_timeout": timeout, "allow_agent": False, "look_for_keys": False,
+    }
+    if private_key:
+        kwargs["pkey"] = _load_pkey(private_key)
+    elif password:
+        kwargs["password"] = password
+    client.connect(**kwargs)
+    return client

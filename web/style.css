@@ -244,3 +244,10 @@ label.f input,label.f select,label.f textarea{width:100%}
   #nav a span:last-child,.side-user{display:none}
   #page{padding:16px}
 }
+
+/* 服务器运维 */
+.ops-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; margin:12px 0; }
+.ops-card { background:var(--card,#fff); border:1px solid var(--border,#e3e6eb); border-radius:10px; padding:14px; }
+.ops-card h4 { margin:0 0 6px; }
+.ops-card p { min-height:42px; }
+.ops-log { background:#0d1117; color:#d6deeb; border-radius:8px; padding:12px; max-height:420px; overflow:auto; white-space:pre-wrap; word-break:break-all; font-size:12.5px; line-height:1.55; }

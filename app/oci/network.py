@@ -155,3 +155,17 @@ def open_security_port(account_id: int, security_list_id: str, port: int,
             oci.core.models.UpdateSecurityListDetails(
                 ingress_security_rules=rules))
         return {"ok": True}
+
+
+def get_subnet_security_lists(account_id: int, subnet_id: str) -> list[str]:
+    """取子网关联的安全列表 ID 列表(改 SSH 端口时同步放行用)。"""
+    with oci_clients(account_id) as c:
+        sn = c.network.get_subnet(subnet_id).data
+        return list(sn.security_list_ids or [])
+
+
+def get_vnic_subnet_id(account_id: int, vnic_id: str) -> str | None:
+    """取 VNIC 所属子网 ID。"""
+    with oci_clients(account_id) as c:
+        v = c.network.get_vnic(vnic_id).data
+        return v.subnet_id

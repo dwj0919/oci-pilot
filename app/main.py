@@ -65,8 +65,10 @@ for r in (auth.router, accounts.router, instances.router, network.router,
 try:
     from .routers.ssh import router as ssh_router
     app.include_router(ssh_router)
+    from .routers.ops import router as ops_router
+    app.include_router(ops_router)
 except ImportError:
-    log.warning("ssh 路由未就绪, 跳过")
+    log.warning("ssh/ops 路由未就绪, 跳过")
 
 
 @app.get("/api/health")

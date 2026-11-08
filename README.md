@@ -4,7 +4,7 @@
 
 ## English summary
 
-oci-pilot is a free, open-source (MIT), self-hosted management panel for Oracle Cloud Infrastructure (OCI). It reimplements the OCI feature set of tools like R-Bot with fully original code: instance management, a launch-retry ("capacity hunter") engine, image reinstall, terminate-while-keeping-the-boot-volume, public IP swap, multi-profile support, launching from an existing boot volume, object storage, serial console access, Web SSH/SFTP, a traffic guard, an instance watchdog, and a Telegram bot. Your OCI API keys never leave your own server.
+oci-pilot is a free, open-source (MIT), self-hosted management panel for Oracle Cloud Infrastructure (OCI). It reimplements the OCI feature set of tools like R-Bot with fully original code: instance management, a launch-retry ("capacity hunter") engine, image reinstall, terminate-while-keeping-the-boot-volume, public IP swap, multi-profile support, launching from an existing boot volume, object storage, serial console access, Web SSH/SFTP, a server-ops toolbox (fail2ban, key-only login, verified SSH port change, swap, BBR, timezone, system update), a traffic guard, an instance watchdog, and a Telegram bot. Your OCI API keys never leave your own server.
 
 > 🤖 本项目全程由 [muse.ai](https://muse.ai)（Meta 的个人 AI 助手）协助完成：从需求分析、架构设计到全部代码、测试与部署文档，均由 Muse 与作者结对构建。
 
@@ -34,6 +34,7 @@ oci-pilot is a free, open-source (MIT), self-hosted management panel for Oracle 
 | 实例保活 | 意外停机 Telegram 通知 / 自动拉起 |
 | 流量守护 | 按实例设月流出阈值，超了通知或自动关机 |
 | Web SSH | 浏览器终端（多标签）、SFTP 文件管理、在线编辑、一键从 OCI 同步主机 |
+| 服务器运维 | 固定模板一键执行并全程记录日志：fail2ban 防爆破、密钥登录（可关密码登录，先实测密钥能登录才关）、改 SSH 端口（双端口过渡 + 实测通过才关旧口 + OCI 安全列表同步放行）、添加 Swap、开启 BBR、设置时区、系统更新 |
 | Telegram Bot | 上面几乎所有能力都能在手机上操作（/instances /launch /tasks /quota /volumes /watch /traffic /daily …） |
 | 每日报告 | 每天 08:00 推送实例日报 |
 
@@ -103,6 +104,7 @@ app/
   routers/           REST API
   bot/               Telegram Bot
   ssh/               Web SSH 会话管理 + SFTP
+  ops/               运维动作模板库 + 任务执行器
   monitor/           调度器: 保活/流量守护/日报
 web/                 前端 SPA
 ```

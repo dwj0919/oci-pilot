@@ -199,6 +199,7 @@ const NAV = [
   { id: 'console', label: '串行控制台', ico: '🖧' },
   { id: 'monitors', label: '监控告警', ico: '🔔' },
   { id: 'ssh', label: 'SSH 终端', ico: '💻' },
+  { id: 'ops', label: '服务器运维', ico: '🛠️' },
   { id: 'settings', label: '设置', ico: '⚙️' },
 ];
 function renderNav() {
@@ -969,6 +970,147 @@ PAGES.console = async function () {
 };
 
 /* ================= 监控告警 ================= */
+
+/* ================= 服务器运维 ================= */
+const OPS = { poll: null, taskId: null };
+
+function opsStopPoll() { if (OPS.poll) { clearInterval(OPS.poll); OPS.poll = null; } }
+
+PAGES.ops = async function () {
+  opsStopPoll();
+  const el = pageEl();
+  const [hosts, actions, keys] = await Promise.all([
+    api('GET', '/ssh/hosts'), api('GET', '/ops/actions'), api('GET', '/ssh/keys')]);
+  OPS.keys = keys;
+  OPS.actionsCache = actions;
+  el.innerHTML =
+    '<div class="page-head"><h2>服务器运维</h2></div>' +
+    '<div class="card"><div class="field"><label>目标主机</label>' +
+    '<select id="ops-host">' + hosts.map(h =>
+      '<option value="' + h.id + '">' + esc(h.name) + '（' + esc(h.username) + '@' +
+      esc(h.hostname) + ':' + h.port + '）</option>').join('') + '</select></div>' +
+    '<p class="muted">动作均为固定模板在目标机上执行，全程日志可见。主机需先在「SSH 终端」页配置好登录凭证。重装系统在「实例」页（终止重开）；这里是系统内的常用运维。</p></div>' +
+    '<div class="ops-grid">' + actions.map(a =>
+      '<div class="ops-card" data-op="' + a.id + '"><h4>' + esc(a.name) +
+      (a.danger ? ' <span class="chip red">谨慎</span>' : '') + '</h4>' +
+      '<p class="muted">' + esc(a.desc) + '</p>' +
+      '<button class="btn sm primary">执行</button></div>').join('') + '</div>' +
+    '<div class="card hidden" id="ops-log-card"><h3>执行日志 <span id="ops-log-status"></span></h3>' +
+    '<pre class="ops-log" id="ops-log"></pre></div>' +
+    '<div class="card"><h3>最近任务</h3><div id="ops-history"></div></div>';
+
+  if (!hosts.length) toast('还没有主机，请先在 SSH 终端页添加或从 OCI 同步', 'warn');
+  el.querySelectorAll('[data-op]').forEach(c => c.addEventListener('click', () => {
+    if (!el.querySelector('#ops-host').value) { toast('请先选择主机', 'warn'); return; }
+    openOpsModal(actions.find(a => a.id === c.dataset.op),
+                 el.querySelector('#ops-host').value);
+  }));
+  loadOpsHistory();
+};
+
+async function loadOpsHistory() {
+  const box = document.querySelector('#ops-history');
+  if (!box) return;
+  const tasks = await api('GET', '/ops/tasks?limit=20');
+  const names = {}; (OPS.actionsCache || []).forEach(a => names[a.id] = a.name);
+  box.innerHTML = tasks.length ? '<table><thead><tr><th>时间</th><th>主机</th><th>动作</th><th>状态</th><th></th></tr></thead><tbody>' +
+    tasks.map(t => '<tr><td>' + new Date(t.created_at).toLocaleString() + '</td><td>' +
+      esc(t.host_name) + '</td><td>' + esc(names[t.action] || t.action) + '</td><td>' +
+      (t.status === 'done' ? '<span class="chip green">成功</span>' :
+       t.status === 'failed' ? '<span class="chip red">失败</span>' :
+       '<span class="chip">运行中</span>') +
+      '</td><td><button class="btn sm ghost" data-log="' + t.id + '">日志</button></td></tr>').join('') +
+    '</tbody></table>' : '<p class="muted">暂无记录</p>';
+  box.querySelectorAll('[data-log]').forEach(b => b.addEventListener('click', () => watchOpsTask(+b.dataset.log)));
+}
+
+function opsFieldHtml(f) {
+  const id = 'opf-' + f.key;
+  if (f.type === 'int') return '<div class="field" data-field="' + f.key + '"><label>' + esc(f.label) + '</label>' +
+    '<input type="number" id="' + id + '" value="' + (f.default ?? '') + '"' +
+    (f.min !== undefined ? ' min="' + f.min + '"' : '') + (f.max !== undefined ? ' max="' + f.max + '"' : '') + '></div>';
+  if (f.type === 'bool') return '<div class="field" data-field="' + f.key + '"><label>' +
+    '<input type="checkbox" id="' + id + '"' + (f.default ? ' checked' : '') + '> ' + esc(f.label) + '</label></div>';
+  if (f.type === 'select') return '<div class="field" data-field="' + f.key + '"><label>' + esc(f.label) + '</label>' +
+    '<select id="' + id + '">' + (f.options || []).map(o =>
+      '<option value="' + esc(o.v) + '"' + (o.v === f.default ? ' selected' : '') + '>' + esc(o.t) + '</option>').join('') + '</select></div>';
+  if (f.type === 'key_id') return '<div class="field" data-field="' + f.key + '"><label>' + esc(f.label) + '</label>' +
+    '<select id="' + id + '">' + (OPS.keys || []).map(k =>
+      '<option value="' + k.id + '">' + esc(k.name) + '</option>').join('') + '</select>' +
+    ((OPS.keys || []).length ? '' : '<p class="muted">（暂无已保存密钥，请先到 SSH 终端页添加）</p>') + '</div>';
+  if (f.type === 'textarea') return '<div class="field" data-field="' + f.key + '"><label>' + esc(f.label) + '</label>' +
+    '<textarea id="' + id + '" rows="3" placeholder="' + esc(f.help || '') + '"></textarea></div>';
+  return '<div class="field" data-field="' + f.key + '"><label>' + esc(f.label) + '</label>' +
+    '<input type="text" id="' + id + '" value="' + esc(f.default || '') + '"></div>';
+}
+
+function openOpsModal(action, hostId) {
+  openModal('执行：' + action.name,
+    '<p class="muted">' + esc(action.desc) + '</p>' +
+    (action.params || []).map(opsFieldHtml).join('') +
+    '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">' +
+    '<button class="btn" onclick="closeModal()">取消</button>' +
+    '<button class="btn primary" id="ops-run">开始执行</button></div>');
+
+  const srcSel = document.querySelector('#opf-source');
+  const syncSource = () => {
+    if (!srcSel) return;
+    const stored = srcSel.value === 'stored';
+    const kRow = document.querySelector('[data-field="key_id"]');
+    const pRow = document.querySelector('[data-field="public_key"]');
+    const dBox = document.querySelector('#opf-disable_password');
+    if (kRow) kRow.classList.toggle('hidden', !stored);
+    if (pRow) pRow.classList.toggle('hidden', stored);
+    if (dBox) { dBox.disabled = !stored; if (!stored) dBox.checked = false; }
+  };
+  if (srcSel) { srcSel.addEventListener('change', syncSource); syncSource(); }
+
+  document.querySelector('#ops-run').addEventListener('click', async () => {
+    const params = {};
+    (action.params || []).forEach(f => {
+      const n = document.querySelector('#opf-' + f.key);
+      if (!n) return;
+      if (f.type === 'int' || f.type === 'key_id') params[f.key] = n.value === '' ? null : +n.value;
+      else if (f.type === 'bool') params[f.key] = n.checked;
+      else params[f.key] = n.value;
+    });
+    if (action.danger && !await confirmDlg(action.name,
+      '将在所选主机上执行「<b>' + esc(action.name) + '</b>」，请确认参数无误。继续吗？', '确认执行')) return;
+    try {
+      const t = await withLoading(() => api('POST', '/ops/tasks',
+        { host_id: +hostId, action: action.id, params }));
+      closeModal();
+      toast('任务已启动 #' + t.id, 'ok');
+      watchOpsTask(t.id);
+      loadOpsHistory();
+    } catch (e) { toast(e.message, 'error'); }
+  });
+}
+
+function watchOpsTask(taskId) {
+  opsStopPoll();
+  OPS.taskId = taskId;
+  const card = document.querySelector('#ops-log-card');
+  const pre = document.querySelector('#ops-log');
+  const st = document.querySelector('#ops-log-status');
+  if (!card || !pre) return;
+  card.classList.remove('hidden');
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const tick = async () => {
+    if (!document.contains(pre)) { opsStopPoll(); return; }
+    try {
+      const t = await api('GET', '/ops/tasks/' + taskId);
+      pre.textContent = t.log || '（等待输出…）';
+      pre.scrollTop = pre.scrollHeight;
+      st.innerHTML = t.status === 'done' ? '<span class="chip green">成功</span>' :
+        t.status === 'failed' ? '<span class="chip red">失败</span>' : '<span class="chip">运行中…</span>';
+      if (t.status !== 'running') { opsStopPoll(); loadOpsHistory(); }
+    } catch (e) { opsStopPoll(); }
+  };
+  tick();
+  OPS.poll = setInterval(tick, 1500);
+}
+
 PAGES.monitors = async function () {
   if (!needAccount()) return;
   const el = pageEl();

@@ -95,6 +95,19 @@ class TrafficGuard(SQLModel, table=True):
 
 
 
+class OpsTask(SQLModel, table=True):
+    """服务器运维任务: 对一台主机执行一个固定动作模板, 保存全程日志。"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    host_id: int
+    host_name: str = ""
+    action: str
+    params_json: str = "{}"
+    status: str = "running"  # running | done | failed
+    log: str = ""
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    finished_at: Optional[datetime] = None
+
+
 class LoginCode(SQLModel, table=True):
     """Telegram 验证码登录: Bot 发 6 位码, Web 端验证。"""
     id: Optional[int] = Field(default=None, primary_key=True)
