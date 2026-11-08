@@ -146,7 +146,7 @@ def _key_login_build(p, ctx):
             {"cmd": "{SUDO} mkdir -p /etc/ssh/sshd_config.d && "
                     + _tee_lines(dropin,
                                  "/etc/ssh/sshd_config.d/99-oci-pilot-keyonly.conf")},
-            {"cmd": "{SUDO} sshd -t && "
+            {"cmd": "{SUDO} mkdir -p /run/sshd && {SUDO} sshd -t && "
                     "({SUDO} systemctl restart sshd 2>/dev/null || "
                     "{SUDO} systemctl restart ssh) && "
                     "echo 'sshd 已重载: 密码登录已关闭(当前会话不受影响)'"},
@@ -179,7 +179,7 @@ def ssh_port_phase_a(p, ctx):
                 f"{{SUDO}} firewall-cmd --permanent --add-port={new}/tcp && "
                 "{SUDO} firewall-cmd --reload; fi; echo '主机防火墙处理完毕'",
          "allow_fail": True},
-        {"cmd": "{SUDO} sshd -t && "
+        {"cmd": "{SUDO} mkdir -p /run/sshd && {SUDO} sshd -t && "
                 "({SUDO} systemctl restart sshd 2>/dev/null || "
                 "{SUDO} systemctl restart ssh) && "
                 f"echo 'sshd 已重启, 当前同时监听 {old} 与 {new}'"},
@@ -193,7 +193,7 @@ def ssh_port_phase_c(p, ctx):
                 + _tee_lines(["# Managed by oci-pilot: ssh ports",
                               f"Port {p['new_port']}"],
                              "/etc/ssh/sshd_config.d/99-oci-pilot-port.conf")},
-        {"cmd": "{SUDO} sshd -t && "
+        {"cmd": "{SUDO} mkdir -p /run/sshd && {SUDO} sshd -t && "
                 "({SUDO} systemctl restart sshd 2>/dev/null || "
                 "{SUDO} systemctl restart ssh) && "
                 f"echo '已切换: sshd 现在只监听 {p['new_port']}'"},
@@ -209,9 +209,9 @@ def _swap_validate(p):
 def _swap_build(p, ctx):
     n = p["size_gb"]
     script = f"""set -e
-if swapon --show=NAME --noheadings 2>/dev/null | grep -q .; then
+if {{SUDO}} swapon --show=NAME --noheadings 2>/dev/null | grep -q .; then
   echo '检测到已有 swap, 未做任何更改:'
-  swapon --show
+  {{SUDO}} swapon --show
   exit 0
 fi
 {{SUDO}} fallocate -l {n}G /swapfile || {{SUDO}} dd if=/dev/zero of=/swapfile bs=1M count={n * 1024} status=none
@@ -220,7 +220,7 @@ fi
 {{SUDO}} swapon /swapfile
 grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' | {{SUDO}} tee -a /etc/fstab > /dev/null
 echo 'swap 已创建并写入 fstab:'
-swapon --show
+{{SUDO}} swapon --show
 free -h"""
     return [{"cmd": script, "timeout": 300}]
 
@@ -233,9 +233,9 @@ def _bbr_build(p, ctx):
     script = ("{SUDO} modprobe tcp_bbr 2>/dev/null || true\n"
               + _tee_lines(lines, "/etc/sysctl.d/99-oci-pilot-bbr.conf") + "\n"
               "{SUDO} sysctl --system > /dev/null\n"
-              "cur=$(sysctl -n net.ipv4.tcp_congestion_control)\n"
+              "cur=$({SUDO} sysctl -n net.ipv4.tcp_congestion_control)\n"
               "echo \"当前 TCP 拥塞控制: $cur\"\n"
-              "echo \"可用: $(sysctl -n net.ipv4.tcp_available_congestion_control)\"\n"
+              "echo \"可用: $({SUDO} sysctl -n net.ipv4.tcp_available_congestion_control)\"\n"
               "if [ \"$cur\" != \"bbr\" ]; then echo 'BBR 未生效(内核可能不支持)'; exit 1; fi\n"
               "echo 'BBR 已开启'")
     return [{"cmd": script}]
