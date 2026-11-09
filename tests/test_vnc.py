@@ -82,7 +82,7 @@ class _FakeClient:
 
 
 _chan = FakeVncChan()
-V.open_vnc_channel = lambda sess: (_FakeClient(), _FakeClient(), _chan)
+V.open_vnc_tunnel = lambda sess: _chan
 
 # ---- 会话存储单元检查 ----
 conn = _fake_create(1, "ocid1.instance.x")

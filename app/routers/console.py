@@ -97,16 +97,17 @@ async def vnc_ws(ws: WebSocket, session: str = "", token: str = ""):
         log.warning("VNC 控制台连接未在时限内 ACTIVE (会话 %s), 仍尝试建隧道",
                     sess.id)
     outer = inner = chan = None
+    tunnel = None
     err = None
     for attempt in range(2):
         try:
-            outer, inner, chan = await asyncio.to_thread(
-                V.open_vnc_channel, sess)
+            tunnel = await asyncio.to_thread(V.open_vnc_tunnel, sess)
             err = None
             break
         except Exception as e:
             err = e
-            if attempt == 0 and "Authentication failed" in str(e):
+            if attempt == 0 and ("Permission denied" in str(e)
+                                 or "Authentication" in str(e)):
                 log.info("VNC 隧道首次认证失败, 3 秒后重试 (会话 %s)", sess.id)
                 await asyncio.sleep(3)
     if err is not None:
@@ -115,7 +116,7 @@ async def vnc_ws(ws: WebSocket, session: str = "", token: str = ""):
         V.drop(sess.id)
         await asyncio.to_thread(V.close_session, sess)
         return
-    sess.attach(outer, inner, chan)
+    sess.attach(tunnel)
     log.info("VNC 图形控制台已连接: 实例 %s (会话 %s)",
              sess.instance_id[-12:], sess.id)
 
@@ -126,11 +127,11 @@ async def vnc_ws(ws: WebSocket, session: str = "", token: str = ""):
                 return
             data = msg.get("bytes") or (msg.get("text") or "").encode()
             if data:
-                await asyncio.to_thread(chan.sendall, data)
+                await asyncio.to_thread(tunnel.sendall, data)
 
     async def chan_to_ws():
         while True:
-            data = await asyncio.to_thread(chan.recv, 65536)
+            data = await asyncio.to_thread(tunnel.recv, 65536)
             if not data:
                 return
             await ws.send_bytes(data)
