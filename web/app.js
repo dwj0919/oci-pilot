@@ -944,12 +944,22 @@ PAGES.console = async function () {
     } catch (e) {
       if (w) w.close();
       toast(e.message || '创建图形控制台失败', 'err');
+      el.querySelector('#cc-out').innerHTML =
+        '<div class="card" style="background:var(--bg2)"><h3>图形控制台创建失败</h3>' +
+        '<p class="small" style="color:var(--red,#d70015)">' + esc(e.message || '未知错误') + '</p></div>';
     }
   });
   el.querySelector('#btn-cc-new').addEventListener('click', async () => {
     const instId = el.querySelector('#cc-inst').value;
-    const r = await withLoading(() => api('POST', '/console/connections', { account_id: +S.accountId, instance_id: instId }));
     const box = el.querySelector('#cc-out');
+    let r;
+    try {
+      r = await withLoading(() => api('POST', '/console/connections', { account_id: +S.accountId, instance_id: instId }));
+    } catch (e) {
+      box.innerHTML = '<div class="card" style="background:var(--bg2)"><h3>创建失败</h3>' +
+        '<p class="small" style="color:var(--red,#d70015)">' + esc(e.message || '未知错误') + '</p></div>';
+      return;
+    }
     box.innerHTML = '<div class="card" style="background:var(--bg2)"><h3>连接已创建</h3>' +
       '<p class="muted small">1. 下载私钥到本机；2. 在本机终端执行下面的 SSH 命令（需能访问公网）</p>' +
       '<pre class="code" id="cc-cmd">' + esc(r.ssh_command) + '</pre>' +
@@ -974,7 +984,14 @@ PAGES.console = async function () {
     const instId = el.querySelector('#cc-inst').value;
     const box = el.querySelector('#cc-out');
     box.innerHTML = '<div class="empty">正在截取控制台输出…</div>';
-    const h = await withLoading(() => api('POST', '/console/history', { account_id: +S.accountId, instance_id: instId }));
+    let h;
+    try {
+      h = await withLoading(() => api('POST', '/console/history', { account_id: +S.accountId, instance_id: instId }));
+    } catch (e) {
+      box.innerHTML = '<div class="card" style="background:var(--bg2)"><h3>截取失败</h3>' +
+        '<p class="small" style="color:var(--red,#d70015)">' + esc(e.message || '未知错误') + '</p></div>';
+      return;
+    }
     async function poll() {
       const d = await api('GET', '/console/history/' + h.history_id + '?account_id=' + S.accountId);
       box.innerHTML = '<div class="card" style="background:var(--bg2)"><h3>控制台历史 <span class="muted small">' + esc(d.state) + '</span></h3>' +
