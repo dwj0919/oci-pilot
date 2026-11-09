@@ -258,6 +258,41 @@ def _tz_build(p, ctx):
     ]
 
 
+# ---------------- 主机名 ----------------
+
+HOSTNAME_RE = re.compile(
+    r"^(?=.{1,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?"
+    r"(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$")
+
+
+def _hostname_validate(p):
+    name = (p.get("hostname") or "").strip().lower()
+    if not HOSTNAME_RE.match(name):
+        raise ValueError(
+            "主机名不合法: 只能用小写字母/数字/连字符/点, 每段 1-63 字符, "
+            "段首段尾不能是连字符, 总长不超过 253")
+    return {"hostname": name}
+
+
+def _hostname_build(p, ctx):
+    name = p["hostname"]
+    q = shlex.quote(name)
+    script = (
+        "set -e\n"
+        f"if command -v hostnamectl > /dev/null 2>&1; then "
+        f"{{SUDO}} hostnamectl set-hostname {q}; "
+        f"else echo {q} | {{SUDO}} tee /etc/hostname > /dev/null && "
+        f"{{SUDO}} hostname {q}; fi\n"
+        f"if grep -q '^127\\.0\\.1\\.1' /etc/hosts; then "
+        f"{{SUDO}} sed -i 's/^127\\.0\\.1\\.1.*/127.0.1.1 {name}/' /etc/hosts; "
+        f"else echo '127.0.1.1 {name}' | {{SUDO}} tee -a /etc/hosts > /dev/null; fi\n"
+        "echo '主机名已设置(当前 shell 的提示符要重新登录才刷新):'\n"
+        "hostname\n"
+        "grep '^127\\.0\\.1\\.1' /etc/hosts || true"
+    )
+    return [{"cmd": script}]
+
+
 # ---------------- 系统更新 ----------------
 
 def _sysupdate_build(p, ctx):
@@ -340,6 +375,15 @@ ACTIONS = [
              "options": [{"v": tz, "t": tz} for tz in ALLOWED_TZ]},
         ],
         "validate": _tz_validate, "build": _tz_build,
+    },
+    {
+        "id": "hostname", "name": "设置主机名", "danger": False,
+        "desc": "修改操作系统的主机名(hostnamectl 设置, 并同步 /etc/hostname 与 /etc/hosts 的 127.0.1.1 记录)。注意: 这是系统内部的主机名, 与实例管理里改的 OCI 显示名是两回事, 互不影响。",
+        "params": [
+            {"key": "hostname", "label": "新主机名(小写字母/数字/-/., 如 web-1)",
+             "type": "text", "default": ""},
+        ],
+        "validate": _hostname_validate, "build": _hostname_build,
     },
     {
         "id": "sysupdate", "name": "系统更新", "danger": True,

@@ -82,9 +82,23 @@ def test_swap_bbr_tz_update():
     assert "apt-get" in upd and "reboot-required" in upd
 
 
+def test_hostname():
+    v = A.BY_ID["hostname"]["validate"]
+    assert v({"hostname": "web-1"}) == {"hostname": "web-1"}
+    assert v({"hostname": " Web-1.Example.COM "}) == {"hostname": "web-1.example.com"}
+    assert v({"hostname": "a"}) == {"hostname": "a"}
+    for bad in ("", "-bad", "bad-", "bad_name", "a..b", "ho st", "a" * 64,
+                "web_1", ".web", "web.", "web-.x"):
+        assert raises(v, {"hostname": bad}), bad
+    cmd = A.BY_ID["hostname"]["build"]({"hostname": "web-1"}, CTX)[0]["cmd"]
+    assert "hostnamectl set-hostname web-1" in cmd
+    assert "127.0.1.1 web-1" in cmd and "{SUDO}" in cmd
+    assert "/etc/hostname" in cmd  # 无 systemd 回退路径
+
+
 def test_public_actions_shape():
     acts = A.public_actions()
-    assert len(acts) == 7
+    assert len(acts) == 8
     for a in acts:
         assert set(a) == {"id", "name", "desc", "danger", "params"}
         assert not callable(a.get("validate"))
@@ -95,5 +109,6 @@ if __name__ == "__main__":
     test_key_login()
     test_ssh_port()
     test_swap_bbr_tz_update()
+    test_hostname()
     test_public_actions_shape()
     print("test_ops_actions: ALL PASS")
