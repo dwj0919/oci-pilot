@@ -116,7 +116,13 @@ def create_console_connection(account_id: int, instance_id: str) -> dict:
             pass
         ssh_cmd = (
             f"ssh -i console_{conn.id}.pem "
-            f"-o ProxyCommand='ssh -W %h:%p -p 443 "
+            f"-o HostKeyAlgorithms=+ssh-rsa "
+            f"-o PubkeyAcceptedAlgorithms=+ssh-rsa "
+            f"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
+            f"-o ProxyCommand='ssh -W %h:%p -i console_{conn.id}.pem -p 443 "
+            f"-o HostKeyAlgorithms=+ssh-rsa "
+            f"-o PubkeyAcceptedAlgorithms=+ssh-rsa "
+            f"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "
             f"{conn.id}@instance-console.{region}.oci.oraclecloud.com' "
             f"-p 443 {instance_id}"
         )

@@ -81,6 +81,23 @@ def run_with(fake):
 
 
 def main():
+    # 0) 串行命令: ProxyCommand 必须带 -i, 两跳都要放行 ssh-rsa
+    f0 = FakeCompute()
+    old_clients = cons.oci_clients
+
+    @contextlib.contextmanager
+    def fake_clients0(account_id):
+        yield SimpleNamespace(compute=f0, tenancy="ocid1.tenancy.oc1..t")
+    cons.oci_clients = fake_clients0
+    try:
+        rs = cons.create_console_connection(1, "ocid1.instance.oc1..i")
+    finally:
+        cons.oci_clients = old_clients
+    cmd = rs["ssh_command"]
+    assert cmd.count("-i console_") == 2, cmd
+    assert cmd.count("HostKeyAlgorithms=+ssh-rsa") == 2, cmd
+    print("串行命令: ProxyCommand 带 -i, 两跳放行 ssh-rsa ✓")
+
     # 1) 有旧连接 → 409 → 自动删除 → 重试成功
     f = FakeCompute(fail_status=409)
     r = run_with(f)
