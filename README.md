@@ -28,7 +28,7 @@ oci-pilot is a free, open-source (MIT), self-hosted management panel for Oracle 
 | 从启动盘开机 | 拿未附加的启动盘直接开机（机器和数据保留） |
 | 网络 | 换公网 IP、保留 IP（创建/绑定/解绑/删除）、IPv6 附加/删除、一键开放安全组端口 |
 | 硬盘 | 数据卷/启动盘：创建/扩容/调性能/分离/挂回/删除 |
-| 串行控制台 | SSH 连不上时的救命通道 + 控制台历史查看；另有浏览器图形控制台：点开新窗口经双跳 SSH 隧道直连实例 VNC 画面（noVNC），Windows 实例救机首选 |
+| 串行控制台 | SSH 连不上时的救命通道 + 控制台历史查看；另有浏览器图形控制台：点开新窗口经双跳 SSH 隧道直连实例 VNC 画面（noVNC），Windows 实例救机首选。[串行控制台教程](docs/serial-console.md)（含抓 GRUB 编辑启动项、grub> 命令行手动启动、改密码实战） |
 | 对象存储 | Bucket 增删、文件上传/下载/删除 |
 | A1 体检 | 批量检查 ARM 实例是否超出免费额度（4C/24G） |
 | 实例保活 | 意外停机 Telegram 通知 / 自动拉起 |

@@ -927,7 +927,7 @@ PAGES.console = async function () {
     '<button class="btn" id="btn-cc-new">创建串行连接 (SSH)</button>' +
     '<button class="btn" id="btn-cc-hist">查看控制台历史</button></div>' +
     '<div id="cc-out"></div></div>' +
-    '<div class="hint">图形控制台会在新窗口直接打开实例的 VNC 画面(Windows 实例救机首选, 顶部有 Ctrl+Alt+Del 按钮)；串行连接则生成 SSH 命令在本机执行, 进串口后可挂载 Netboot.xyz（<code>https://netboot.xyz</code>）引导救援系统。</div>';
+    '<div class="hint">图形控制台会在新窗口直接打开实例的 VNC 画面(Windows 实例救机首选, 顶部有 Ctrl+Alt+Del 按钮)；串行连接则生成 SSH 命令在本机执行, 进串口后可挂载 Netboot.xyz（<code>https://netboot.xyz</code>）引导救援系统。看重启过程、抓 GRUB 改启动项、忘记密码重置等完整教程见项目文档 <code>docs/serial-console.md</code>。</div>';
 
   el.querySelector('#btn-cc-vnc').addEventListener('click', async () => {
     const instId = el.querySelector('#cc-inst').value;
