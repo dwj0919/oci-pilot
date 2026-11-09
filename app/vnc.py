@@ -134,8 +134,7 @@ def open_vnc_channel(sess: VncSession):
     host = f"instance-console.{sess.region}.oci.oraclecloud.com"
     outer = paramiko.SSHClient()
     outer.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    inner = paramiko.SSHClient()
-    inner.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    inner = None  # paramiko.Transport (不用 SSHClient, 见下方说明)
     try:
         try:
             outer.connect(host, port=443, username=sess.connection_id,
@@ -151,16 +150,22 @@ def open_vnc_channel(sess: VncSession):
                 timeout=30)
         except Exception as e:
             raise RuntimeError(f"中转通道 (-W %h:%p) 失败: {e}") from e
+        # 内层端点 (OCI 控制台多路复用器) 的主机密钥只提供 ssh-rsa (SHA-1)
+        # 签名, 新版 paramiko 默认已不接受 -> 用裸 Transport 放宽 key_types。
+        inner = paramiko.Transport(hop)
+        inner.get_security_options().key_types = (
+            "ssh-ed25519", "ecdsa-sha2-nistp256", "ecdsa-sha2-nistp384",
+            "ecdsa-sha2-nistp521", "rsa-sha2-512", "rsa-sha2-256", "ssh-rsa")
         try:
-            inner.connect(sess.instance_id, port=443,
-                          username=sess.connection_id, pkey=key, sock=hop,
-                          timeout=30, banner_timeout=30, auth_timeout=30,
-                          look_for_keys=False, allow_agent=False)
+            inner.start_client(timeout=30)
+            inner.auth_publickey(sess.connection_id, key)
+            if not inner.is_authenticated():
+                raise paramiko.AuthenticationException("内层认证未通过")
         except Exception as e:
             raise RuntimeError(f"内层 SSH (实例控制台) 失败: {e}") from e
-        inner.get_transport().set_keepalive(30)
+        inner.set_keepalive(30)
         try:
-            chan = inner.get_transport().open_channel(
+            chan = inner.open_channel(
                 "direct-tcpip", (sess.instance_id, 5900), ("127.0.0.1", 0),
                 timeout=30)
         except Exception as e:
