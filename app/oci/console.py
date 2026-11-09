@@ -22,6 +22,25 @@ def _ephemeral_keypair() -> tuple[str, str]:
     return priv, pub
 
 
+def create_connection_ephemeral(account_id: int, instance_id: str) -> dict:
+    """创建控制台连接(浏览器 VNC 用): 一次性私钥只在内存中流转, 不落盘。
+
+    返回 connection_id / region / private_key / 官方 VNC 连接串。
+    """
+    from ..db import get_session
+    from ..db import OCIAccount
+    with oci_clients(account_id) as c:
+        with get_session() as s:
+            region = s.get(OCIAccount, account_id).region
+        priv, pub = _ephemeral_keypair()
+        conn = c.compute.create_instance_console_connection(
+            oci.core.models.CreateInstanceConsoleConnectionDetails(
+                instance_id=instance_id, public_key=pub)).data
+        return {"connection_id": conn.id, "region": region,
+                "private_key": priv,
+                "vnc_connection_string": conn.vnc_connection_string or ""}
+
+
 def create_console_connection(account_id: int, instance_id: str) -> dict:
     """创建串行控制台连接, 返回可直接用的 SSH 命令和私钥(下载)。"""
     from ..db import get_session

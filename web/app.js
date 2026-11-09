@@ -923,11 +923,29 @@ PAGES.console = async function () {
     '<div class="card"><h3>SSH 连不上时的救命通道</h3>' +
     '<div class="toolbar" style="margin-bottom:12px"><select id="cc-inst" style="min-width:260px">' +
     S.instances.map(i => '<option value="' + i.id + '">' + esc(i.name) + '（' + i.state + '）</option>').join('') +
-    '</select><button class="btn primary" id="btn-cc-new">创建控制台连接</button>' +
+    '</select><button class="btn primary" id="btn-cc-vnc">🖥 图形控制台 (VNC)</button>' +
+    '<button class="btn" id="btn-cc-new">创建串行连接 (SSH)</button>' +
     '<button class="btn" id="btn-cc-hist">查看控制台历史</button></div>' +
     '<div id="cc-out"></div></div>' +
-    '<div class="hint">救援思路：进串口后可挂载 Netboot.xyz（<code>https://netboot.xyz</code>）引导救援系统，或直接排查启动失败。</div>';
+    '<div class="hint">图形控制台会在新窗口直接打开实例的 VNC 画面(Windows 实例救机首选, 顶部有 Ctrl+Alt+Del 按钮)；串行连接则生成 SSH 命令在本机执行, 进串口后可挂载 Netboot.xyz（<code>https://netboot.xyz</code>）引导救援系统。</div>';
 
+  el.querySelector('#btn-cc-vnc').addEventListener('click', async () => {
+    const instId = el.querySelector('#cc-inst').value;
+    // 先占住新窗口(异步后再 open 会被浏览器弹窗拦截), 拿到会话再跳转
+    const w = window.open('', '_blank', 'width=1120,height=760');
+    if (w) w.document.write('<title>图形控制台 · OCI Pilot</title>' +
+      '<p style="font-family:sans-serif;padding:24px;color:#333">正在创建控制台连接并建立隧道…</p>');
+    try {
+      const r = await withLoading(() => api('POST', '/console/vnc-sessions', { account_id: +S.accountId, instance_id: instId }));
+      const url = '/vnc.html?s=' + encodeURIComponent(r.session_id);
+      if (w) w.location = url;
+      else window.open(url, '_blank', 'width=1120,height=760');
+      toast('图形控制台已在新窗口打开', 'ok');
+    } catch (e) {
+      if (w) w.close();
+      toast(e.message || '创建图形控制台失败', 'err');
+    }
+  });
   el.querySelector('#btn-cc-new').addEventListener('click', async () => {
     const instId = el.querySelector('#cc-inst').value;
     const r = await withLoading(() => api('POST', '/console/connections', { account_id: +S.accountId, instance_id: instId }));
