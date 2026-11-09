@@ -134,6 +134,26 @@ def delete_console_connection(account_id: int, connection_id: str) -> dict:
         return {"ok": True}
 
 
+def wait_connection_active(account_id: int, connection_id: str,
+                           timeout: int = 90) -> bool:
+    """等控制台连接进入 ACTIVE: 刚创建时是 CREATING, 此时建隧道会被拒
+    (Authentication failed), 浏览器秒连必踩, 必须等就绪。"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with oci_clients(account_id) as c:
+                state = c.compute.get_instance_console_connection(
+                    connection_id).data.lifecycle_state
+            if state == "ACTIVE":
+                return True
+            if state in ("DELETED", "FAILED"):
+                return False
+        except Exception:
+            pass
+        time.sleep(2)
+    return False
+
+
 def capture_console_history(account_id: int, instance_id: str) -> dict:
     with oci_clients(account_id) as c:
         h = c.compute.capture_console_history(

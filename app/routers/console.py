@@ -89,10 +89,28 @@ async def vnc_ws(ws: WebSocket, session: str = "", token: str = ""):
         await ws.close(code=4401)
         return
     await ws.accept()
-    try:
-        outer, inner, chan = await asyncio.to_thread(V.open_vnc_channel, sess)
-    except Exception as e:
-        log.warning("VNC 隧道建立失败 (会话 %s): %s", sess.id, e)
+    # 控制台连接刚创建时还在 CREATING, 立刻建隧道会被拒; 先等它 ACTIVE
+    # (尽力而为: 等不到也照常尝试, 隧道自身的错误才是准信)
+    ready = await asyncio.to_thread(
+        CC.wait_connection_active, sess.account_id, sess.connection_id)
+    if not ready:
+        log.warning("VNC 控制台连接未在时限内 ACTIVE (会话 %s), 仍尝试建隧道",
+                    sess.id)
+    outer = inner = chan = None
+    err = None
+    for attempt in range(2):
+        try:
+            outer, inner, chan = await asyncio.to_thread(
+                V.open_vnc_channel, sess)
+            err = None
+            break
+        except Exception as e:
+            err = e
+            if attempt == 0 and "Authentication failed" in str(e):
+                log.info("VNC 隧道首次认证失败, 3 秒后重试 (会话 %s)", sess.id)
+                await asyncio.sleep(3)
+    if err is not None:
+        log.warning("VNC 隧道建立失败 (会话 %s): %s", sess.id, err)
         await ws.close(code=4502)
         V.drop(sess.id)
         await asyncio.to_thread(V.close_session, sess)

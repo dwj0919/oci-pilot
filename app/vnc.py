@@ -137,19 +137,34 @@ def open_vnc_channel(sess: VncSession):
     inner = paramiko.SSHClient()
     inner.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
-        outer.connect(host, port=443, username=sess.connection_id, pkey=key,
-                      timeout=30, banner_timeout=30, auth_timeout=30)
+        try:
+            outer.connect(host, port=443, username=sess.connection_id,
+                          pkey=key, timeout=30, banner_timeout=30,
+                          auth_timeout=30, look_for_keys=False,
+                          allow_agent=False)
+        except Exception as e:
+            raise RuntimeError(f"外层 SSH (instance-console) 失败: {e}") from e
         outer.get_transport().set_keepalive(30)
-        hop = outer.get_transport().open_channel(
-            "direct-tcpip", (sess.instance_id, 443), ("127.0.0.1", 0),
-            timeout=30)
-        inner.connect(sess.instance_id, port=443,
-                      username=sess.connection_id, pkey=key, sock=hop,
-                      timeout=30, banner_timeout=30, auth_timeout=30)
+        try:
+            hop = outer.get_transport().open_channel(
+                "direct-tcpip", (sess.instance_id, 443), ("127.0.0.1", 0),
+                timeout=30)
+        except Exception as e:
+            raise RuntimeError(f"中转通道 (-W %h:%p) 失败: {e}") from e
+        try:
+            inner.connect(sess.instance_id, port=443,
+                          username=sess.connection_id, pkey=key, sock=hop,
+                          timeout=30, banner_timeout=30, auth_timeout=30,
+                          look_for_keys=False, allow_agent=False)
+        except Exception as e:
+            raise RuntimeError(f"内层 SSH (实例控制台) 失败: {e}") from e
         inner.get_transport().set_keepalive(30)
-        chan = inner.get_transport().open_channel(
-            "direct-tcpip", (sess.instance_id, 5900), ("127.0.0.1", 0),
-            timeout=30)
+        try:
+            chan = inner.get_transport().open_channel(
+                "direct-tcpip", (sess.instance_id, 5900), ("127.0.0.1", 0),
+                timeout=30)
+        except Exception as e:
+            raise RuntimeError(f"VNC 通道 (5900) 失败: {e}") from e
         return outer, inner, chan
     except Exception:
         for obj in (inner, outer):

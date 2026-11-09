@@ -45,6 +45,7 @@ def _fake_delete(account_id, connection_id):
 
 CC.create_connection_ephemeral = _fake_create
 CC.delete_console_connection = _fake_delete
+CC.wait_connection_active = lambda *a, **k: True
 
 # ---- 假隧道: 一个会发 RFB banner 并回显的通道 ----
 import app.vnc as V  # noqa: E402
