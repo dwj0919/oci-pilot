@@ -1,5 +1,7 @@
 """串行控制台: SSH 连不上时的救命通道 + 控制台历史。"""
 import base64
+import logging
+import time
 
 import oci
 from cryptography.hazmat.primitives import serialization
@@ -7,6 +9,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from .base import oci_clients, OCIError
 from ..config import DATA_DIR
+
+log = logging.getLogger("oci-pilot")
 
 
 def _ephemeral_keypair() -> tuple[str, str]:
@@ -22,6 +26,61 @@ def _ephemeral_keypair() -> tuple[str, str]:
     return priv, pub
 
 
+def _list_instance_connections(c, instance_id: str) -> list:
+    try:
+        return oci.pagination.list_call_get_all_results(
+            c.compute.list_instance_console_connections,
+            c.tenancy, instance_id=instance_id).data
+    except Exception as e:
+        log.warning("列出实例控制台连接失败: %s", e)
+        return []
+
+
+def _delete_instance_connections(c, instance_id: str) -> int:
+    """删除某实例名下所有未删除的控制台连接, 返回数量(尽力而为)。"""
+    n = 0
+    for conn in _list_instance_connections(c, instance_id):
+        if conn.lifecycle_state == "DELETED":
+            continue
+        try:
+            c.compute.delete_instance_console_connection(conn.id)
+            n += 1
+        except Exception:
+            pass
+    return n
+
+
+def _wait_connections_gone(c, instance_id: str, timeout: int = 20) -> None:
+    """等旧连接终止干净(删除是异步的, 立刻重建可能仍撞 409)。"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        left = [x for x in _list_instance_connections(c, instance_id)
+                if x.lifecycle_state != "DELETED"]
+        if not left:
+            return
+        time.sleep(2)
+
+
+def _create_connection(c, instance_id: str, pub: str):
+    """创建控制台连接; OCI 每实例只允许一个未终止连接, 遇到 409 先清理
+    该实例的旧连接(多为之前没删的残留)再重试, 最多 3 轮。"""
+    details = oci.core.models.CreateInstanceConsoleConnectionDetails(
+        instance_id=instance_id, public_key=pub)
+    last = None
+    for _attempt in range(3):
+        try:
+            return c.compute.create_instance_console_connection(details).data
+        except oci.exceptions.ServiceError as e:
+            if e.status != 409:
+                raise
+            last = e
+            n = _delete_instance_connections(c, instance_id)
+            log.info("实例 %s 已有控制台连接(409), 已清理 %d 个旧连接后重试",
+                     instance_id[-12:], n)
+            _wait_connections_gone(c, instance_id)
+    raise last
+
+
 def create_connection_ephemeral(account_id: int, instance_id: str) -> dict:
     """创建控制台连接(浏览器 VNC 用): 一次性私钥只在内存中流转, 不落盘。
 
@@ -33,9 +92,7 @@ def create_connection_ephemeral(account_id: int, instance_id: str) -> dict:
         with get_session() as s:
             region = s.get(OCIAccount, account_id).region
         priv, pub = _ephemeral_keypair()
-        conn = c.compute.create_instance_console_connection(
-            oci.core.models.CreateInstanceConsoleConnectionDetails(
-                instance_id=instance_id, public_key=pub)).data
+        conn = _create_connection(c, instance_id, pub)
         return {"connection_id": conn.id, "region": region,
                 "private_key": priv,
                 "vnc_connection_string": conn.vnc_connection_string or ""}
@@ -49,9 +106,7 @@ def create_console_connection(account_id: int, instance_id: str) -> dict:
         with get_session() as s:
             region = s.get(OCIAccount, account_id).region
         priv, pub = _ephemeral_keypair()
-        conn = c.compute.create_instance_console_connection(
-            oci.core.models.CreateInstanceConsoleConnectionDetails(
-                instance_id=instance_id, public_key=pub)).data
+        conn = _create_connection(c, instance_id, pub)
         key_path = DATA_DIR / f"console_{conn.id}.pem"
         key_path.write_text(priv)
         try:
